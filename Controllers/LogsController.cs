@@ -24,7 +24,6 @@ namespace Document_Management.Controllers
         }
 
         [HttpPost]
-        [ValidateAntiForgeryToken]
         public async Task<IActionResult> GetActivityLogs([FromForm] DataTablesParameters parameters, CancellationToken cancellationToken)
         {
             try

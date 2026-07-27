@@ -5,6 +5,15 @@ The format is based on Semantic Versioning.
 
 ---
 
+## [v7.1.4] - 2026-07-27
+### Fixed
+- Fixed the logs DataTables endpoint so the activity log table can load server-side results without failing anti-forgery validation.
+
+### Changed
+- Changed the logs activity fetch flow to align the server-side endpoint with the current `Views/Logs/Index.cshtml` DataTables request behavior.
+
+---
+
 ## [v7.1.3] - 2026-07-27
 ### Added
 - Added a dedicated general search page with its own search form and a document-text search option.
