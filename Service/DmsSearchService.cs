@@ -87,14 +87,12 @@ namespace Document_Management.Service
                     EF.Functions.ILike(file.ExtractedText, currentKeyword));
             }
 
-            query = ApplySorting(query, sortBy, sortOrder);
-
             var totalRecords = await query.CountAsync(cancellationToken);
             var totalPages = totalRecords == 0
                 ? 0
                 : (int)Math.Ceiling(totalRecords / (double)pageSize);
 
-            var pagedResults = await query
+            var pagedResults = await ApplySorting(query, sortBy, sortOrder)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(file => new FileDocument
