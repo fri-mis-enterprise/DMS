@@ -8,6 +8,7 @@ namespace Document_Management.Service
     {
         Task<GeneralSearchViewModel> SearchAsync(
             string search,
+            bool searchDocumentText,
             int page,
             int pageSize,
             string sortBy,
@@ -28,12 +29,14 @@ namespace Document_Management.Service
 
         public async Task<GeneralSearchViewModel> SearchAsync(
             string search,
+            bool searchDocumentText,
             int page,
             int pageSize,
             string sortBy,
             string sortOrder,
             CancellationToken cancellationToken)
         {
+            search = search.Trim();
             page = Math.Max(1, page);
             pageSize = pageSize switch
             {
@@ -43,7 +46,36 @@ namespace Document_Management.Service
                 _ => 100
             };
 
-            var keywords = search
+            var searchExtractedTextOnly = searchDocumentText;
+            if (search.StartsWith("ocr:", StringComparison.OrdinalIgnoreCase))
+            {
+                searchExtractedTextOnly = true;
+                search = search[4..].Trim();
+            }
+            else if (search.StartsWith("content:", StringComparison.OrdinalIgnoreCase))
+            {
+                searchExtractedTextOnly = true;
+                search = search[8..].Trim();
+            }
+
+            var normalizedSearch = search;
+
+            if (string.IsNullOrWhiteSpace(normalizedSearch))
+            {
+                return new GeneralSearchViewModel
+                {
+                    Results = [],
+                    CurrentPage = page,
+                    HasNextPage = false,
+                    PageSize = pageSize,
+                    SearchTerm = normalizedSearch,
+                    SearchDocumentText = searchExtractedTextOnly,
+                    SortBy = sortBy,
+                    SortOrder = sortOrder
+                };
+            }
+
+            var keywords = normalizedSearch
                 .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var query = _dbContext.FileDocuments
@@ -63,10 +95,10 @@ namespace Document_Management.Service
                     {
                         Results = [],
                         CurrentPage = page,
-                        TotalPages = 0,
-                        TotalRecords = 0,
+                        HasNextPage = false,
                         PageSize = pageSize,
-                        SearchTerm = search,
+                        SearchTerm = normalizedSearch,
+                        SearchDocumentText = searchExtractedTextOnly,
                         SortBy = sortBy,
                         SortOrder = sortOrder
                     };
@@ -80,21 +112,33 @@ namespace Document_Management.Service
             foreach (var keyword in keywords)
             {
                 var currentKeyword = $"%{keyword}%";
+                var isNumericKeyword = keyword.All(char.IsDigit);
+                var isYearKeyword = isNumericKeyword && keyword.Length == 4;
+
+                if (searchExtractedTextOnly)
+                {
+                    query = query.Where(file => EF.Functions.ILike(file.ExtractedText, currentKeyword));
+                    continue;
+                }
+
                 query = query.Where(file =>
                     EF.Functions.ILike(file.Description, currentKeyword) ||
                     EF.Functions.ILike(file.OriginalFilename, currentKeyword) ||
                     EF.Functions.ILike(file.BoxNumber, currentKeyword) ||
-                    EF.Functions.ILike(file.ExtractedText, currentKeyword));
+                    EF.Functions.ILike(file.Company, currentKeyword) ||
+                    EF.Functions.ILike(file.Department, currentKeyword) ||
+                    EF.Functions.ILike(file.Category, currentKeyword) ||
+                    EF.Functions.ILike(file.SubCategory, currentKeyword) ||
+                    EF.Functions.ILike(file.Username, currentKeyword) ||
+                    EF.Functions.ILike(file.SubmittedBy, currentKeyword) ||
+                    (isYearKeyword
+                        ? file.Year == keyword
+                        : EF.Functions.ILike(file.Year, currentKeyword)));
             }
-
-            var totalRecords = await query.CountAsync(cancellationToken);
-            var totalPages = totalRecords == 0
-                ? 0
-                : (int)Math.Ceiling(totalRecords / (double)pageSize);
 
             var pagedResults = await ApplySorting(query, sortBy, sortOrder)
                 .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Take(pageSize + 1)
                 .Select(file => new FileDocument
                 {
                     Id = file.Id,
@@ -110,14 +154,20 @@ namespace Document_Management.Service
                 })
                 .ToListAsync(cancellationToken);
 
+            var hasNextPage = pagedResults.Count > pageSize;
+            if (hasNextPage)
+            {
+                pagedResults.RemoveAt(pagedResults.Count - 1);
+            }
+
             return new GeneralSearchViewModel
             {
                 Results = pagedResults,
                 CurrentPage = page,
-                TotalPages = totalPages,
-                TotalRecords = totalRecords,
+                HasNextPage = hasNextPage,
                 PageSize = pageSize,
-                SearchTerm = search,
+                SearchTerm = normalizedSearch,
+                SearchDocumentText = searchExtractedTextOnly,
                 SortBy = sortBy,
                 SortOrder = sortOrder
             };

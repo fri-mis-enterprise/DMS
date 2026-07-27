@@ -2,10 +2,10 @@
 @{
     ViewData["Title"] = "General Search";
     var currentPage = Model.CurrentPage;
-    var totalPages = Model.TotalPages;
-    var totalRecords = Model.TotalRecords;
+    var hasNextPage = Model.HasNextPage;
     var pageSize = Model.PageSize;
     var searchTerm = Model.SearchTerm;
+    var searchDocumentText = Model.SearchDocumentText;
     var sortBy = Model.SortBy;
     var sortOrder = Model.SortOrder;
 
@@ -24,12 +24,27 @@
 
 <h1>File Search Results</h1>
 <hr />
-<p class="text-muted">Search matches file metadata and extracted PDF text. Newly uploaded scanned PDFs may take a while to appear while OCR processing completes.</p>
+<form id="generalSearchForm" class="row g-3 align-items-end mb-4" asp-controller="Dms" asp-action="GeneralSearch" data-loading-message="Searching documents...">
+    <div class="col-lg-8">
+        <label for="searchInput" class="form-label">Search term</label>
+        <input id="searchInput" name="search" value="@searchTerm" class="form-control" type="search" placeholder="Search file name, description, box number, or folder details">
+    </div>
+    <div class="col-lg-3">
+        <div class="form-check mt-lg-4 pt-lg-2">
+            <input class="form-check-input" type="checkbox" name="searchDocumentText" value="true" id="searchDocumentText" checked="@searchDocumentText">
+            <label class="form-check-label" for="searchDocumentText">Search inside document text</label>
+        </div>
+    </div>
+    <div class="col-lg-1 d-grid">
+        <button id="generalSearchSubmitButton" class="btn btn-secondary" type="submit">Search</button>
+    </div>
+</form>
+<p class="text-muted">Searching @(searchDocumentText ? "text found inside documents" : "file details such as file name, description, box number, and folder information"). Newly uploaded scanned PDFs may take a while to appear while OCR processing completes.</p>
 
-@if (totalRecords > 0)
+@if (Model.Results.Count > 0)
 {
     <p class="text-muted mb-3">
-        Showing @((currentPage - 1) * pageSize + 1) to @Math.Min(currentPage * pageSize, totalRecords) of @totalRecords.ToString("N0") results
+        Showing page @currentPage
     </p>
 
     <div class="table-responsive">
@@ -38,31 +53,31 @@
             <tr class="text-nowrap">
                 <th scope="col">Location Folder</th>
                 <th scope="col">
-                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = "BoxNumber", sortOrder = GetNextSortOrder("BoxNumber") })"
+                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = 1, pageSize = pageSize, sortBy = "BoxNumber", sortOrder = GetNextSortOrder("BoxNumber") })"
                        class="text-decoration-none text-dark">
                         Box Number @GetSortIcon("BoxNumber")
                     </a>
                 </th>
                 <th scope="col">
-                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = "OriginalFilename", sortOrder = GetNextSortOrder("OriginalFilename") })"
+                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = 1, pageSize = pageSize, sortBy = "OriginalFilename", sortOrder = GetNextSortOrder("OriginalFilename") })"
                        class="text-decoration-none text-dark">
                         File Name @GetSortIcon("OriginalFilename")
                     </a>
                 </th>
                 <th scope="col">
-                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = "Description", sortOrder = GetNextSortOrder("Description") })"
+                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = 1, pageSize = pageSize, sortBy = "Description", sortOrder = GetNextSortOrder("Description") })"
                        class="text-decoration-none text-dark">
                         Description @GetSortIcon("Description")
                     </a>
                 </th>
                 <th scope="col">
-                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = "Username", sortOrder = GetNextSortOrder("Username") })"
+                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = 1, pageSize = pageSize, sortBy = "Username", sortOrder = GetNextSortOrder("Username") })"
                        class="text-decoration-none text-dark">
                         Uploaded By @GetSortIcon("Username")
                     </a>
                 </th>
                 <th scope="col">
-                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = "DateUploaded", sortOrder = GetNextSortOrder("DateUploaded") })"
+                    <a href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = 1, pageSize = pageSize, sortBy = "DateUploaded", sortOrder = GetNextSortOrder("DateUploaded") })"
                        class="text-decoration-none text-dark">
                         Date Uploaded @GetSortIcon("DateUploaded")
                     </a>
@@ -91,64 +106,39 @@
         </table>
     </div>
 
-    @if (totalPages > 1)
-    {
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, page = 1, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
-                        First
-                    </a>
-                </li>
+    <nav aria-label="Page navigation">
+        <ul class="pagination justify-content-center">
+            <li class="page-item @(currentPage == 1 ? "disabled" : "")">
+                <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = currentPage - 1, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
+                    Previous
+                </a>
+            </li>
 
-                <li class="page-item @(currentPage == 1 ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, page = currentPage - 1, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
-                        Previous
-                    </a>
-                </li>
+            <li class="page-item disabled">
+                <span class="page-link">Page @currentPage</span>
+            </li>
 
-                @{
-                    var startPage = Math.Max(1, currentPage - 2);
-                    var endPage = Math.Min(totalPages, currentPage + 2);
-                }
+            <li class="page-item @(!hasNextPage ? "disabled" : "")">
+                <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, searchDocumentText, page = currentPage + 1, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
+                    Next
+                </a>
+            </li>
+        </ul>
+    </nav>
 
-                @for (var i = startPage; i <= endPage; i++)
-                {
-                    <li class="page-item @(i == currentPage ? "active" : "")">
-                        <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, page = i, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
-                            @i
-                        </a>
-                    </li>
-                }
-
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, page = currentPage + 1, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
-                        Next
-                    </a>
-                </li>
-
-                <li class="page-item @(currentPage == totalPages ? "disabled" : "")">
-                    <a class="page-link" href="@Url.Action("GeneralSearch", new { search = searchTerm, page = totalPages, pageSize = pageSize, sortBy = sortBy, sortOrder = sortOrder })">
-                        Last
-                    </a>
-                </li>
-            </ul>
-        </nav>
-
-        <div class="text-center mt-3">
-            <label for="pageSize">Items per page:</label>
-            <select id="pageSize" class="form-select d-inline-block w-auto" onchange="changePageSize(this.value)">
-                <option value="10" selected="@(pageSize == 10)">10</option>
-                <option value="25" selected="@(pageSize == 25)">25</option>
-                <option value="50" selected="@(pageSize == 50)">50</option>
-                <option value="100" selected="@(pageSize == 100)">100</option>
-            </select>
-        </div>
-    }
+    <div class="text-center mt-3">
+        <label for="pageSize">Items per page:</label>
+        <select id="pageSize" class="form-select d-inline-block w-auto" onchange="changePageSize(this.value)">
+            <option value="10" selected="@(pageSize == 10)">10</option>
+            <option value="25" selected="@(pageSize == 25)">25</option>
+            <option value="50" selected="@(pageSize == 50)">50</option>
+            <option value="100" selected="@(pageSize == 100)">100</option>
+        </select>
+    </div>
 }
 else
 {
-    <p><i>No file found for these keywords.</i></p>
+    <p><i>@(string.IsNullOrWhiteSpace(searchTerm) ? "Enter a search term to find documents." : "No file found for these keywords.")</i></p>
 }
 
 <script>
@@ -158,13 +148,28 @@ function changePageSize(newPageSize) {
     }
 
     var searchTerm = '@searchTerm';
+    var searchDocumentText = '@searchDocumentText'.toLowerCase() === 'true';
     var sortBy = '@sortBy';
     var sortOrder = '@sortOrder';
-    window.location.href = '@Url.Action("GeneralSearch")?search=' + encodeURIComponent(searchTerm) + '&page=1&pageSize=' + newPageSize + '&sortBy=' + sortBy + '&sortOrder=' + sortOrder;
+    window.location.href = '@Url.Action("GeneralSearch")?search=' + encodeURIComponent(searchTerm) + '&searchDocumentText=' + searchDocumentText + '&page=1&pageSize=' + newPageSize + '&sortBy=' + sortBy + '&sortOrder=' + sortOrder;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+    var searchForm = document.getElementById('generalSearchForm');
+    var searchButton = document.getElementById('generalSearchSubmitButton');
     var searchLinks = document.querySelectorAll('a[href*="GeneralSearch"]');
+
+    if (searchForm) {
+        searchForm.addEventListener('submit', function () {
+            if (searchButton) {
+                searchButton.disabled = true;
+            }
+
+            if (window.showGlobalLoading) {
+                window.showGlobalLoading(searchForm.dataset.loadingMessage || 'Searching documents...');
+            }
+        });
+    }
 
     searchLinks.forEach(function (link) {
         link.addEventListener('click', function () {

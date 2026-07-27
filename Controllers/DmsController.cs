@@ -649,6 +649,7 @@ namespace Document_Management.Controllers
 
         public async Task<IActionResult> GeneralSearch(
             string search,
+            bool searchDocumentText = false,
             int page = 1,
             int pageSize = 10,
             string sortBy = "DateUploaded",
@@ -660,14 +661,23 @@ namespace Document_Management.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            if (string.IsNullOrEmpty(search))
+            if (string.IsNullOrWhiteSpace(search))
             {
-                return RedirectToAction("Index", "Home");
+                return View(new GeneralSearchViewModel
+                {
+                    CurrentPage = 1,
+                    HasNextPage = false,
+                    PageSize = pageSize,
+                    SearchTerm = string.Empty,
+                    SearchDocumentText = searchDocumentText,
+                    SortBy = sortBy,
+                    SortOrder = sortOrder
+                });
             }
 
             try
             {
-                var model = await _dmsSearchService.SearchAsync(search, page, pageSize, sortBy, sortOrder, cancellationToken);
+                var model = await _dmsSearchService.SearchAsync(search, searchDocumentText, page, pageSize, sortBy, sortOrder, cancellationToken);
                 return View(model);
             }
             catch (Exception ex)

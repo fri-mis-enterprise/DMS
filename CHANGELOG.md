@@ -5,6 +5,21 @@ The format is based on Semantic Versioning.
 
 ---
 
+## [v7.1.3] - 2026-07-27
+### Added
+- Added a dedicated general search page with its own search form and a document-text search option.
+
+### Changed
+- Changed the navigation to use a simple `Search` menu link instead of a crowded header search form.
+- Changed general search pagination to use next-page detection instead of exact total counts.
+- Changed the general search experience so metadata search is the default and document text search is an explicit user choice.
+
+### Fixed
+- Fixed general search query behavior to avoid the heaviest default search path for ordinary metadata searches.
+- Fixed general search wording so metadata search and document text search are easier to understand.
+
+---
+
 ## [v7.1.2] - 2026-05-22
 ### Fixed
 - Fixed file transfer so selecting the same storage path no longer deletes the document in Cloud Storage.
