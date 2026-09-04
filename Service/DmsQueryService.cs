@@ -1,6 +1,7 @@
 using Document_Management.Data;
 using Document_Management.Dtos;
 using Document_Management.Models;
+using Document_Management.Utility.Helper;
 using Microsoft.EntityFrameworkCore;
 
 namespace Document_Management.Service
@@ -13,6 +14,7 @@ namespace Document_Management.Service
         Task<List<CategoryDto>> GetCategoriesAsync(string company, string year, string department, CancellationToken cancellationToken);
         Task<List<string>> GetSubCategoriesAsync(string company, string year, string department, string category, CancellationToken cancellationToken);
         Task<List<FileDocument>> GetFilesAsync(string company, string year, string department, string category, string? subCategory, string? fileName, CancellationToken cancellationToken);
+        Task<HomeDashboardViewModel> GetDashboardStatisticsAsync(CancellationToken cancellationToken);
         Task<DataTableResult<UploadedFilesViewModel>> GetUploadedFilesAsync(DataTablesParameters parameters, CancellationToken cancellationToken);
         Task<DataTableResult<UploadedFilesViewModel>> GetDeletedFilesAsync(DataTablesParameters parameters, CancellationToken cancellationToken);
     }
@@ -144,6 +146,45 @@ namespace Document_Management.Service
                 })
                 .OrderByDescending(file => file.DateUploaded)
                 .ToListAsync(cancellationToken);
+        }
+
+        public async Task<HomeDashboardViewModel> GetDashboardStatisticsAsync(CancellationToken cancellationToken)
+        {
+            var query = _dbContext.FileDocuments
+                .AsNoTracking()
+                .Where(file => !file.IsDeleted);
+
+            if (!_accessService.IsAdmin())
+            {
+                var accessibleCompanies = _accessService.GetAccessibleCompanies();
+                var accessibleDepartments = _accessService.GetAccessibleDepartments();
+
+                if (accessibleCompanies.Count == 0 || accessibleDepartments.Count == 0)
+                {
+                    return new HomeDashboardViewModel();
+                }
+
+                query = query.Where(file =>
+                    accessibleCompanies.Contains(file.Company) &&
+                    accessibleDepartments.Contains(file.Department));
+            }
+
+            var currentDate = DateTimeHelper.GetCurrentPhilippineTime();
+            var monthStart = new DateTime(currentDate.Year, currentDate.Month, 1);
+            var nextMonthStart = monthStart.AddMonths(1);
+
+            return await query
+                .GroupBy(_ => 1)
+                .Select(files => new HomeDashboardViewModel
+                {
+                    ActiveDocuments = files.LongCount(),
+                    UploadedThisMonth = files.LongCount(file =>
+                        file.DateUploaded >= monthStart && file.DateUploaded < nextMonthStart),
+                    TotalPages = files.Sum(file => (long)file.NumberOfPages),
+                    StorageUsedBytes = files.Sum(file => file.FileSize)
+                })
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? new HomeDashboardViewModel();
         }
 
         public Task<DataTableResult<UploadedFilesViewModel>> GetUploadedFilesAsync(DataTablesParameters parameters, CancellationToken cancellationToken)

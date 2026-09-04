@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using Document_Management.Data;
+using Document_Management.Service;
 using Document_Management.Utility.Constants;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,21 +13,37 @@ namespace Document_Management.Controllers
         private readonly ILogger<HomeController> _logger;
         
         private readonly ApplicationDbContext _dbContext;
+        private readonly IDmsQueryService _dmsQueryService;
 
-        public HomeController(ILogger<HomeController> logger, ApplicationDbContext dbContext)
+        public HomeController(
+            ILogger<HomeController> logger,
+            ApplicationDbContext dbContext,
+            IDmsQueryService dmsQueryService)
         {
             _logger = logger;
             _dbContext = dbContext;
+            _dmsQueryService = dmsQueryService;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
-            if (string.IsNullOrEmpty(HttpContext.Session.GetString("username")))
+            var username = HttpContext.Session.GetString("username");
+            if (string.IsNullOrEmpty(username))
             {
                 return RedirectToAction("Login", "Account");
             }
 
-            return View();
+            var statistics = await _dmsQueryService.GetDashboardStatisticsAsync(cancellationToken);
+            var model = new HomeDashboardViewModel
+            {
+                Username = username,
+                ActiveDocuments = statistics.ActiveDocuments,
+                UploadedThisMonth = statistics.UploadedThisMonth,
+                TotalPages = statistics.TotalPages,
+                StorageUsedBytes = statistics.StorageUsedBytes
+            };
+
+            return View(model);
         }
 
         public IActionResult Privacy()
