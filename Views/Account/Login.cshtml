@@ -1,38 +1,93 @@
-﻿@model Document_Management.Models.Account
+@model Document_Management.Models.Account
 
 @{
     ViewData["Title"] = "Log In";
+    Layout = "_LoginLayout";
 }
 
-<h1 class="text-center mt-lg-1">Login</h1>
-<div class="row">
-    <div class="col-md-4 mx-auto">
-        <form asp-action="Login">
-            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-            <div class="form-group">
-                <div class="form-floating mb-3">
-                    <input asp-for="Username" class="form-control" id="floatingInput" placeholder="Username">
-                    <label for="floatingInput">Username</label>
-                    <span asp-validation-for="Username" class="text-danger"></span>
-                </div>
+<div class="login-shell">
+    <section class="login-card" aria-labelledby="login-heading">
+        <div class="login-brand-panel">
+            <img src="~/svg/dms-logo.svg" class="login-logo" alt="DMS logo" />
+
+            <div>
+                <p class="login-eyebrow">Document Management System</p>
+                <h2 class="login-brand-title">Your documents. Organized.</h2>
+                <p class="login-brand-copy">
+                    A secure workspace for managing, finding, and sharing your organization's documents.
+                </p>
             </div>
-            <div class="form-group">
-                <div class="form-floating">
-                    <input asp-for="Password" type="password" class="form-control" id="floatingPassword" placeholder="Password" autocomplete="off">
-                    <label for="floatingPassword">Password</label>
-                    <span asp-validation-for="Password" class="text-danger"></span>
-                </div>
+
+            <p class="login-trust-note">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M12 3 5 6v5c0 4.6 2.9 8.7 7 10 4.1-1.3 7-5.4 7-10V6l-7-3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                    <path d="m9 12 2 2 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Secure access for authorized users
+            </p>
+        </div>
+
+        <div class="login-form-panel">
+            <div class="login-form-wrap">
+                <h1 id="login-heading" class="login-heading">Welcome back</h1>
+                <p class="login-subheading">Enter your credentials to continue to DMS.</p>
+
+                <form asp-action="Login" method="post">
+                    <div asp-validation-summary="ModelOnly"></div>
+
+                    <div class="login-field">
+                        <label asp-for="Username"></label>
+                        <div class="login-input-wrap">
+                            <svg class="login-input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <path d="M20 21a8 8 0 0 0-16 0M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                            </svg>
+                            <input asp-for="Username" class="form-control login-control" placeholder="Enter your username" autocomplete="username" autofocus />
+                        </div>
+                        <span asp-validation-for="Username"></span>
+                    </div>
+
+                    <div class="login-field">
+                        <label asp-for="Password"></label>
+                        <div class="login-input-wrap">
+                            <svg class="login-input-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <rect x="4" y="10" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.8" />
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+                            </svg>
+                            <input asp-for="Password" type="password" class="form-control login-control" placeholder="Enter your password" autocomplete="current-password" />
+                            <button type="button" class="login-password-toggle" id="passwordToggle" aria-label="Show password" aria-pressed="false">
+                                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+                                    <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="1.8" />
+                                </svg>
+                            </button>
+                        </div>
+                        <span asp-validation-for="Password"></span>
+                    </div>
+
+                    <button type="submit" class="btn login-submit w-100">Sign in</button>
+                </form>
             </div>
-            <br />
-            <div class="form-group">
-                <input type="submit" value="Login" class="btn btn-primary rounded col-md-12" />
-            </div>
-        </form>
-    </div>
+        </div>
+    </section>
 </div>
 
 @section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const password = document.getElementById('Password');
+            const toggle = document.getElementById('passwordToggle');
+
+            if (!password || !toggle) {
+                return;
+            }
+
+            toggle.addEventListener('click', () => {
+                const showPassword = password.type === 'password';
+                password.type = showPassword ? 'text' : 'password';
+                toggle.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+                toggle.setAttribute('aria-pressed', showPassword.toString());
+            });
+        })();
+    </script>
 }

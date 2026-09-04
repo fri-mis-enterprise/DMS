@@ -1,0 +1,40 @@
+@{
+    var assembly = typeof(Program).Assembly;
+    var informationalVersion = System.Reflection.CustomAttributeExtensions
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(assembly)?
+        .InformationalVersion;
+    var appVersion = informationalVersion?.Split('+')[0]
+        ?? assembly.GetName().Version?.ToString()
+        ?? "0.0.0";
+    var currentYear = DateTime.UtcNow.Year;
+    var copyrightYears = currentYear > 2024
+        ? $"2024-{currentYear}"
+        : "2024";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DMS ▪ @ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link href="~/svg/dms-icon.svg" rel="shortcut icon" type="image/svg+xml" />
+    <link rel="stylesheet" href="~/css/site.min.css" />
+    <link rel="stylesheet" href="~/css/login.css" asp-append-version="true" />
+</head>
+<body class="login-body">
+    <main role="main">
+        <partial name="_Notification" />
+        @RenderBody()
+    </main>
+
+    <footer class="login-footer">
+        &copy; @copyrightYears DMS <span aria-hidden="true">&middot;</span> @($"v{appVersion}")
+    </footer>
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
