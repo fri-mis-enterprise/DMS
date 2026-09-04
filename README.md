@@ -21,6 +21,8 @@ It includes file categorization, user access control, audit logging, upload mana
 
 For full version history, see the [CHANGELOG](CHANGELOG.md).
 
+For developer setup, architecture, access rules, deployment, and operational handover, see the [DMS Developer Handover Guide](docs/DMS-DEVELOPER-HANDOVER.md).
+
 ---
 
 ## 🏗️ Tech Stack
