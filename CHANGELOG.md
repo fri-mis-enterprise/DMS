@@ -5,6 +5,20 @@ The format is based on Semantic Versioning.
 
 ---
 
+## [v7.2.0] - 2026-09-04
+### Added
+- Added role-aware dashboard statistics for active documents, monthly uploads, stored pages, and storage usage.
+- Added responsive dashboard statistic cards while retaining the DMS tutorial below the dashboard overview.
+
+### Changed
+- Redesigned the login page with a dedicated responsive layout and removed the application navbar from the login experience.
+- Changed the authenticated home page into a dashboard with updated welcome content and document actions.
+
+### Fixed
+- Fixed unauthenticated access to the home page so users are redirected to the redesigned login page instead of seeing a separate login prompt.
+
+---
+
 ## [v7.1.4] - 2026-07-27
 ### Fixed
 - Fixed the logs DataTables endpoint so the activity log table can load server-side results without failing anti-forgery validation.
