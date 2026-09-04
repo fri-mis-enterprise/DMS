@@ -21,6 +21,11 @@ namespace Document_Management.Controllers
 
         public IActionResult Index()
         {
+            if (string.IsNullOrEmpty(HttpContext.Session.GetString("username")))
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
             return View();
         }
 

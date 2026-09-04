@@ -1,9 +1,6 @@
-﻿@{
-    var username = Context.Session.GetString("username");
-}
-
 @{
     ViewData["Title"] = "Dashboard";
+    var username = Context.Session.GetString("username");
 }
 
 <section class="container mt-5">
@@ -13,37 +10,28 @@
             Your secure and efficient Document Management System.
         </p>
 
-        @if (string.IsNullOrEmpty(username))
-        {
-            <a class="btn btn-primary btn-lg mt-3" asp-controller="Account" asp-action="Login">
-                Login to access your documents
-            </a>
-        }
-        else
-        {
-            <div class="mt-3">
-                <p class="fs-5">Welcome back, <strong>@username</strong>! Start managing your documents now.</p>
-                <div class="d-flex justify-content-center gap-3 mt-2">
-                    <a class="btn btn-success" asp-controller="Dms" asp-action="UploadFile">Upload File</a>
-                    <a class="btn btn-info text-white" asp-controller="Dms" asp-action="DownloadFile">Download File</a>
-                </div>
+        <div class="mt-3">
+            <p class="fs-5">Welcome back, <strong>@username</strong>! Start managing your documents now.</p>
+            <div class="d-flex justify-content-center gap-3 mt-2">
+                <a class="btn btn-success" asp-controller="Dms" asp-action="UploadFile">Upload File</a>
+                <a class="btn btn-info text-white" asp-controller="Dms" asp-action="DownloadFile">Download File</a>
             </div>
+        </div>
 
-            <div class="card shadow-lg border-0">
-                <div class="card-body text-center">
-                    <h5 class="card-title">How to Use DMS</h5>
-                    <p class="card-text">Watch this quick walkthrough to learn how to upload, search, and manage your documents.</p>
-                </div>
-                <div class="ratio ratio-16x9">
-                    <iframe src="https://player.vimeo.com/video/1104402765?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"
-                            frameborder="0"
-                            allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
-                            referrerpolicy="strict-origin-when-cross-origin"
-                            title="Watch: How to Use the DMS Effectively">
-                    </iframe>
-                </div>
+        <div class="card shadow-lg border-0">
+            <div class="card-body text-center">
+                <h5 class="card-title">How to Use DMS</h5>
+                <p class="card-text">Watch this quick walkthrough to learn how to upload, search, and manage your documents.</p>
             </div>
-        }
+            <div class="ratio ratio-16x9">
+                <iframe src="https://player.vimeo.com/video/1104402765?badge=0&amp;autopause=0&amp;player_id=0&amp;app_id=58479"
+                        frameborder="0"
+                        allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+                        referrerpolicy="strict-origin-when-cross-origin"
+                        title="Watch: How to Use the DMS Effectively">
+                </iframe>
+            </div>
+        </div>
     </div>
 </section>
 
