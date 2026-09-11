@@ -55,6 +55,8 @@ builder.Services.AddScoped<IPdfUploadValidationService, PdfUploadValidationServi
 builder.Services.AddScoped<IPdfTextExtractionService, PdfTextExtractionService>();
 builder.Services.AddScoped<IDocumentOcrService, DocumentOcrService>();
 builder.Services.AddScoped<CloudStorageMigrationService>();
+builder.Services.AddScoped<MasterDataService>();
+builder.Services.AddScoped<AccountManagementService>();
 
 var ocrWorkerEnabled = builder.Configuration.GetValue("OcrWorker:Enabled", true);
 var ocrExecutionMode = builder.Configuration["OcrWorker:ExecutionMode"] ?? "Web";

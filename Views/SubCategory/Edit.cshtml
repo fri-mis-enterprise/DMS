@@ -17,7 +17,7 @@
                 <label asp-for="CategoryId" class="form-label">Category</label>
                 <div class="col">
                     <select asp-for="CategoryId" asp-items="Model.Categories" class="form-select js-select2 full-width" style="width:100%" required>
-                        <option value="" selected disabled>-- Select the category --</option>
+                        <option value="" disabled>-- Select the category --</option>
                     </select>
                     <span asp-validation-for="CategoryId" class="text-danger"></span>
                 </div>

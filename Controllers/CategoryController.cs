@@ -1,6 +1,6 @@
 using Document_Management.Data;
 using Document_Management.Models;
-using Document_Management.Utility.Helper;
+using Document_Management.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -9,30 +9,25 @@ namespace Document_Management.Controllers
     public class CategoryController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly MasterDataService _masterDataService;
         private readonly ILogger<CategoryController> _logger;
         private readonly string? _userRole;
         private readonly string? _userName;
 
         public CategoryController(
             ApplicationDbContext dbContext,
+            MasterDataService masterDataService,
             IHttpContextAccessor httpContextAccessor,
             ILogger<CategoryController> logger)
         {
             _dbContext = dbContext;
+            _masterDataService = masterDataService;
             _logger = logger;
-
-            if (httpContextAccessor.HttpContext != null)
-            {
-                _userRole = httpContextAccessor.HttpContext.Session.GetString("userRole")?.ToLower();
-                _userName = httpContextAccessor.HttpContext.Session.GetString("username");
-            }
-            else
-            {
-                _userRole = null;
-            }
+            _userRole = httpContextAccessor.HttpContext?.Session.GetString("userRole")?.ToLowerInvariant();
+            _userName = httpContextAccessor.HttpContext?.Session.GetString("username");
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -42,11 +37,7 @@ namespace Document_Management.Controllers
 
             try
             {
-                var category = await _dbContext.Categories
-                    .OrderBy(u => u.CategoryName)
-                    .ToListAsync();
-
-                return View(category);
+                return View(await _dbContext.Categories.OrderBy(category => category.CategoryName).ToListAsync(cancellationToken));
             }
             catch (Exception ex)
             {
@@ -60,12 +51,7 @@ namespace Document_Management.Controllers
         public IActionResult Create()
         {
             var adminAccessResult = EnsureAdminAccess();
-            if (adminAccessResult != null)
-            {
-                return adminAccessResult;
-            }
-
-            return View();
+            return adminAccessResult ?? View();
         }
 
         [HttpPost]
@@ -78,48 +64,26 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var categoryAlreadyExist = await _dbContext.Categories
-                    .AnyAsync(u => u.CategoryName == viewModel.CategoryName, cancellationToken);
-
-                if (categoryAlreadyExist)
-                {
-                    ModelState.AddModelError("CategoryName", "The category with the same name already exists.");
-                    TempData["ErrorMessage"] = "The category with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var category = new Category
-                {
-                    CategoryName = viewModel.CategoryName,
-                    CreatedBy = _userName!,
-                };
-
-                await _dbContext.Categories.AddAsync(category, cancellationToken);
-
-                LogsModel logs = new(_userName!, $"Add new category: {viewModel.CategoryName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Category created successfully";
-                return RedirectToAction("Index");
+                result = await _masterDataService.CreateCategoryAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to create category {CategoryName}.", viewModel.CategoryName);
-                TempData["ErrorMessage"] = "Failed to create category.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to create category.");
                 return View(viewModel);
             }
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Category created successfully";
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpGet]
@@ -133,21 +97,17 @@ namespace Document_Management.Controllers
 
             try
             {
-                var category = await _dbContext.Categories
-                    .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
+                var category = await _dbContext.Categories.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
                 if (category == null)
                 {
                     return NotFound();
                 }
 
-                var viewModel = new CategoryViewModel
+                return View(new CategoryViewModel
                 {
                     Id = category.Id,
-                    CategoryName = category.CategoryName,
-                };
-
-                return View(viewModel);
+                    CategoryName = category.CategoryName
+                });
             }
             catch (Exception ex)
             {
@@ -167,54 +127,44 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var existingCategory = await _dbContext.Categories
-                    .FirstOrDefaultAsync(x => x.Id == viewModel.Id, cancellationToken);
-
-                if (existingCategory == null)
-                {
-                    return NotFound();
-                }
-
-                var categoryAlreadyExist = await _dbContext.Categories
-                    .AnyAsync(u =>
-                        u.Id != viewModel.Id &&
-                        u.CategoryName == viewModel.CategoryName, cancellationToken);
-
-                if (categoryAlreadyExist)
-                {
-                    ModelState.AddModelError("CategoryName", "The category with the same name already exists.");
-                    TempData["ErrorMessage"] = "The category with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var existingName = existingCategory.CategoryName;
-                existingCategory.CategoryName = viewModel.CategoryName;
-                existingCategory.EditedBy = _userName;
-                existingCategory.EditedDate = DateTimeHelper.GetCurrentPhilippineTime();
-
-                LogsModel logs = new(_userName!, $"Update category from {existingName} to {viewModel.CategoryName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Category updated successfully";
-                return RedirectToAction("Index");
+                result = await _masterDataService.UpdateCategoryAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to update category {CategoryId}.", viewModel.Id);
-                TempData["ErrorMessage"] = "Failed to update category.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to update category.");
                 return View(viewModel);
+            }
+            if (result.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Category updated successfully";
+            return RedirectToAction(nameof(Index));
+        }
+
+        private void AddErrors(OperationResult result)
+        {
+            ModelState.Clear();
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(error.Key, error.Value);
+            }
+
+            if (result.GeneralError != null)
+            {
+                ModelState.AddModelError(string.Empty, result.GeneralError);
             }
         }
 

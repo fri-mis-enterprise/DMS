@@ -1,8 +1,13 @@
-namespace Document_Management.Models;
+using System.ComponentModel.DataAnnotations;
 
-public class CategoryViewModel
+namespace Document_Management.Models
 {
-    public int Id { get; set; }
+    public class CategoryViewModel
+    {
+        public int Id { get; set; }
 
-    public string CategoryName { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Category name is required.")]
+        [StringLength(100, ErrorMessage = "Category name cannot exceed 100 characters.")]
+        public string CategoryName { get; set; } = string.Empty;
+    }
 }
