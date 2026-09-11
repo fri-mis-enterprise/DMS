@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Document_Management.Data;
 using Document_Management.Models;
 using Microsoft.AspNetCore.Identity;
@@ -103,7 +105,7 @@ namespace Document_Management.Service
 
             var validation = await ValidateCommonAsync(
                 model.EmployeeNumber,
-                model.Username,
+                null,
                 model.Role,
                 model.Department,
                 model.AccessDepartments,
@@ -115,35 +117,46 @@ namespace Document_Management.Service
                 return validation;
             }
 
-            var passwordValidation = ValidateEditCredentials(model);
-            if (passwordValidation != null)
-            {
-                return passwordValidation;
-            }
-
             account.EmployeeNumber = model.EmployeeNumber;
             account.FirstName = model.FirstName.ToUpperInvariant();
             account.LastName = model.LastName.ToUpperInvariant();
-            account.Username = model.Username;
             account.Role = model.Role;
             account.Department = model.Department;
             account.AccessDepartments = JoinSelections(model.AccessDepartments);
             account.AccessCompanies = JoinSelections(model.AccessCompanies);
             account.IsActive = model.IsActive;
 
-            if (!string.IsNullOrWhiteSpace(model.NewPassword))
-            {
-                account.Password = HashPassword(account, model.NewPassword);
-            }
-
             await _dbContext.Logs.AddAsync(new LogsModel(actor, $"Update user: {account.Username}"), cancellationToken);
 
             return await SaveAsync("Failed to update user.", cancellationToken);
         }
 
+        public async Task<OperationResult> UpdatePasswordAsync(
+            AccountPasswordViewModel model,
+            string actor,
+            CancellationToken cancellationToken)
+        {
+            var account = await _dbContext.Accounts.FirstOrDefaultAsync(x => x.Id == model.Id, cancellationToken);
+            if (account == null)
+            {
+                return OperationResult.NotFoundResult();
+            }
+
+            var validation = ValidatePasswordChange(model, account);
+            if (validation != null)
+            {
+                return validation;
+            }
+
+            account.Password = HashPassword(account, model.Password);
+            await _dbContext.Logs.AddAsync(new LogsModel(actor, $"Update password for user: {account.Username}"), cancellationToken);
+
+            return await SaveAsync("Failed to update password.", cancellationToken);
+        }
+
         private async Task<OperationResult?> ValidateCommonAsync(
             string employeeNumber,
-            string username,
+            string? username,
             string role,
             string department,
             string[]? accessDepartments,
@@ -151,7 +164,7 @@ namespace Document_Management.Service
             int? currentId,
             CancellationToken cancellationToken)
         {
-            var duplicateUsername = await _dbContext.Accounts.AnyAsync(
+            var duplicateUsername = username != null && await _dbContext.Accounts.AnyAsync(
                 account => account.Username == username && (!currentId.HasValue || account.Id != currentId.Value),
                 cancellationToken);
             var duplicateEmployeeNumber = await _dbContext.Accounts.AnyAsync(
@@ -227,28 +240,26 @@ namespace Document_Management.Service
                 : OperationResult.Validation(nameof(model.ConfirmPassword), "Passwords do not match.");
         }
 
-        private static OperationResult? ValidateEditCredentials(AccountEditViewModel model)
+        private static OperationResult? ValidatePasswordChange(AccountPasswordViewModel model, Account account)
         {
-            var hasPassword = !string.IsNullOrWhiteSpace(model.NewPassword);
-            var hasConfirmation = !string.IsNullOrWhiteSpace(model.NewConfirmPassword);
-            if (!hasPassword && !hasConfirmation)
+            if (string.IsNullOrWhiteSpace(model.Password))
             {
-                return null;
+                return OperationResult.Validation(nameof(model.Password), "Password is required.");
             }
 
-            if (!hasPassword)
+            if (string.IsNullOrWhiteSpace(model.ConfirmPassword))
             {
-                return OperationResult.Validation(nameof(model.NewPassword), "Enter a new password or leave both password fields empty.");
+                return OperationResult.Validation(nameof(model.ConfirmPassword), "Confirm Password is required.");
             }
 
-            if (!hasConfirmation)
+            if (model.Password != model.ConfirmPassword)
             {
-                return OperationResult.Validation(nameof(model.NewConfirmPassword), "Confirm the new password or leave both password fields empty.");
+                return OperationResult.Validation(nameof(model.ConfirmPassword), "Passwords do not match.");
             }
 
-            return model.NewPassword == model.NewConfirmPassword
-                ? null
-                : OperationResult.Validation(nameof(model.NewConfirmPassword), "Passwords do not match.");
+            return PasswordMatches(account, model.Password)
+                ? OperationResult.Validation(nameof(model.Password), "New password must not be the same as the previous password.")
+                : null;
         }
 
         private async Task<OperationResult> SaveAsync(string failureMessage, CancellationToken cancellationToken)
@@ -293,6 +304,18 @@ namespace Document_Management.Service
         private static string HashPassword(Account account, string password)
         {
             return PasswordHasher.HashPassword(account, password);
+        }
+
+        private static bool PasswordMatches(Account account, string password)
+        {
+            var verificationResult = PasswordHasher.VerifyHashedPassword(account, account.Password, password);
+            if (verificationResult != PasswordVerificationResult.Failed)
+            {
+                return true;
+            }
+
+            var legacyHash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(password)));
+            return legacyHash == account.Password;
         }
 
         private static bool TryGetPostgresException(DbUpdateException exception, out PostgresException postgresException)

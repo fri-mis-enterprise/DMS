@@ -25,18 +25,6 @@ namespace Document_Management.Models
         [Display(Name = "Last Name", Prompt = "Enter last name")]
         public string LastName { get; set; } = string.Empty;
 
-        [Required(ErrorMessage = "Username is required.")]
-        public string Username { get; set; } = string.Empty;
-
-        [DataType(DataType.Password)]
-        [Display(Name = "New Password", Prompt = "Enter a new password")]
-        public string NewPassword { get; set; } = string.Empty;
-
-        [DataType(DataType.Password)]
-        [Compare(nameof(NewPassword), ErrorMessage = "Passwords do not match.")]
-        [Display(Name = "Confirm New Password", Prompt = "Confirm the new password")]
-        public string NewConfirmPassword { get; set; } = string.Empty;
-
         [Required(ErrorMessage = "Role is required.")]
         public string Role { get; set; } = string.Empty;
 

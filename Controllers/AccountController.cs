@@ -218,7 +218,6 @@ namespace Document_Management.Controllers
                 EmployeeNumber = user.EmployeeNumber,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                Username = user.Username,
                 Role = NormalizeRole(user.Role),
                 Department = user.Department,
                 AccessDepartments = SplitSelections(user.AccessDepartments),
@@ -269,6 +268,73 @@ namespace Document_Management.Controllers
             {
                 _logger.LogError(ex, "Failed to update user {UserId}.", model.Id);
                 ModelState.AddModelError(string.Empty, "Failed to update user.");
+                return View(model);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> UpdatePassword(int id, CancellationToken cancellationToken)
+        {
+            var adminAccessResult = EnsureAdminAccess();
+            if (adminAccessResult != null)
+            {
+                return adminAccessResult;
+            }
+
+            var user = await _dbContext.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            return View(new AccountPasswordViewModel
+            {
+                Id = user.Id,
+                Username = user.Username
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdatePassword(
+            AccountPasswordViewModel model,
+            CancellationToken cancellationToken)
+        {
+            var adminAccessResult = EnsureAdminAccess();
+            if (adminAccessResult != null)
+            {
+                return adminAccessResult;
+            }
+
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return View(model);
+                }
+
+                var result = await _accountManagementService.UpdatePasswordAsync(model, _userName!, cancellationToken);
+                if (result.NotFound)
+                {
+                    return NotFound();
+                }
+
+                if (!result.Succeeded)
+                {
+                    AddErrors(result);
+                    return View(model);
+                }
+
+                TempData["success"] = "Password updated successfully";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update password for user {UserId}.", model.Id);
+                ModelState.AddModelError(string.Empty, "Failed to update password.");
                 return View(model);
             }
         }
