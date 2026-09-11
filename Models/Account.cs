@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc.Rendering;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace Document_Management.Models
 {
@@ -13,9 +13,10 @@ namespace Document_Management.Models
 
         [Required(ErrorMessage = "Employee Number is required.")]
         [Display(Name = "Employee Number", Prompt = "Enter employee number")]
-        [Range(1, int.MaxValue, ErrorMessage = "Employee Number must be a positive integer.")]
+        [StringLength(4, MinimumLength = 4, ErrorMessage = "Employee Number must be a 4-digit number.")]
         [RegularExpression(@"^\d{4}$", ErrorMessage = "Employee Number must be a 4-digit number.")]
-        public int EmployeeNumber { get; set; }
+        [Column(TypeName = "varchar(4)")]
+        public string EmployeeNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "First Name is required.")]
         [StringLength(40, MinimumLength = 1, ErrorMessage = "First Name must be between 1 and 40 characters.")]

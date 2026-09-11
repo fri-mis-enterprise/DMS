@@ -142,7 +142,7 @@ namespace Document_Management.Service
         }
 
         private async Task<OperationResult?> ValidateCommonAsync(
-            int employeeNumber,
+            string employeeNumber,
             string username,
             string role,
             string department,

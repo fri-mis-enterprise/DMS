@@ -8,10 +8,10 @@ namespace Document_Management.Models
         public int Id { get; set; }
 
         [Required(ErrorMessage = "Employee Number is required.")]
-        [Range(1, int.MaxValue, ErrorMessage = "Employee Number must be a positive integer.")]
+        [StringLength(4, MinimumLength = 4, ErrorMessage = "Employee Number must be a 4-digit number.")]
         [RegularExpression(@"^\d{4}$", ErrorMessage = "Employee Number must be a 4-digit number.")]
         [Display(Name = "Employee Number", Prompt = "Enter employee number")]
-        public int EmployeeNumber { get; set; }
+        public string EmployeeNumber { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "First Name is required.")]
         [StringLength(40, MinimumLength = 1, ErrorMessage = "First Name must be between 1 and 40 characters.")]

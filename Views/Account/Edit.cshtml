@@ -26,7 +26,7 @@
                 <div class="field-row field-row-3 mb-3">
                     <div>
                         <label asp-for="EmployeeNumber" class="form-label small fw-semibold"></label>
-                        <input asp-for="EmployeeNumber" class="form-control form-control-sm" />
+                        <input asp-for="EmployeeNumber" type="text" inputmode="numeric" maxlength="4" class="form-control form-control-sm" />
                         <span asp-validation-for="EmployeeNumber" class="text-danger small"></span>
                     </div>
                     <div>
