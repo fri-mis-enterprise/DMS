@@ -24,7 +24,7 @@ namespace Document_Management.Data
 
             var adminAccount = new Account
             {
-                EmployeeNumber = 9999,
+                EmployeeNumber = "9999",
                 FirstName = "AZH",
                 LastName = "ADMIN",
                 Username = _adminUsername,

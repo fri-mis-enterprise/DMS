@@ -1,8 +1,13 @@
-namespace Document_Management.Models;
+using System.ComponentModel.DataAnnotations;
 
-public class CompanyViewModel
+namespace Document_Management.Models
 {
-    public int Id { get; set; }
+    public class CompanyViewModel
+    {
+        public int Id { get; set; }
 
-    public string CompanyName { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Company name is required.")]
+        [StringLength(100, ErrorMessage = "Company name cannot exceed 100 characters.")]
+        public string CompanyName { get; set; } = string.Empty;
+    }
 }

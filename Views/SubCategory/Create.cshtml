@@ -17,14 +17,14 @@
                 <label asp-for="CategoryId" class="form-label">Category</label>
                 <div class="col">
                     <select asp-for="CategoryId" asp-items="Model.Categories" class="form-select js-select2 full-width" style="width:100%" required>
-                        <option value="" selected disabled>-- Select the category --</option>
+                        <option value="" disabled>-- Select the category --</option>
                     </select>
                     <span asp-validation-for="CategoryId" class="text-danger"></span>
                 </div>
             </div>
             <div class="mb-3">
                 <label asp-for="SubCategoryName" class="form-label">Sub Category Name</label>
-                <input asp-for="SubCategoryName" value="" class="form-control" />
+                <input asp-for="SubCategoryName" class="form-control" />
                 <span asp-validation-for="SubCategoryName" class="text-danger"></span>
             </div>
             <div class="mb-3">

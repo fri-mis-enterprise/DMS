@@ -1,17 +1,18 @@
-using Document_Management.Data;
-using Document_Management.Models;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
+using Document_Management.Data;
+using Document_Management.Models;
+using Document_Management.Service;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Document_Management.Controllers
 {
     public class AccountController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly AccountManagementService _accountManagementService;
         private readonly ILogger<AccountController> _logger;
         private readonly string? _userRole;
         private readonly string? _userName;
@@ -19,10 +20,12 @@ namespace Document_Management.Controllers
 
         public AccountController(
             ApplicationDbContext context,
+            AccountManagementService accountManagementService,
             IHttpContextAccessor httpContextAccessor,
             ILogger<AccountController> logger)
         {
             _dbContext = context;
+            _accountManagementService = accountManagementService;
             _logger = logger;
 
             if (httpContextAccessor.HttpContext != null)
@@ -61,7 +64,7 @@ namespace Document_Management.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -71,25 +74,9 @@ namespace Document_Management.Controllers
 
             try
             {
-                return View(new Account
-                {
-                    Departments = await _dbContext.Departments
-                           .OrderBy(d => d.DepartmentName)
-                           .Select(s => new SelectListItem
-                           {
-                               Text = s.DepartmentName,
-                               Value = s.DepartmentName
-                           })
-                           .ToListAsync(),
-                    Companies = await _dbContext.Companies
-                           .OrderBy(c => c.CompanyName)
-                           .Select(s => new SelectListItem
-                           {
-                               Text = s.CompanyName,
-                               Value = s.CompanyName
-                           })
-                           .ToListAsync()
-                });
+                var model = new AccountCreateViewModel();
+                await PopulateOptionsAsync(model, cancellationToken);
+                return View(model);
             }
             catch (Exception ex)
             {
@@ -101,7 +88,7 @@ namespace Document_Management.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Account user, string[] accessDepartments, string[] accessCompanies, CancellationToken cancellationToken)
+        public async Task<IActionResult> Create(AccountCreateViewModel model, CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -109,84 +96,30 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                user.Departments = await _dbContext.Departments
-                    .OrderBy(d => d.DepartmentName)
-                    .Select(s => new SelectListItem
-                    {
-                        Text = s.DepartmentName,
-                        Value = s.DepartmentName
-                    })
-                    .ToListAsync(cancellationToken);
-
-                user.Companies = await _dbContext.Companies
-                    .OrderBy(c => c.CompanyName)
-                    .Select(s => new SelectListItem
-                    {
-                        Text = s.CompanyName,
-                        Value = s.CompanyName
-                    })
-                    .ToListAsync(cancellationToken);
+                await PopulateOptionsAsync(model, cancellationToken);
 
                 if (!ModelState.IsValid)
                 {
-                    return View(user);
+                    return View(model);
                 }
 
-                var usernameExists = await _dbContext.Accounts
-                    .AnyAsync(u => u.Username == user.Username, cancellationToken);
-
-                var employeeNumberExists = await _dbContext.Accounts
-                    .AnyAsync(u => u.EmployeeNumber == user.EmployeeNumber, cancellationToken);
-
-                switch (usernameExists)
+                var result = await _accountManagementService.CreateAsync(model, _userName!, cancellationToken);
+                if (!result.Succeeded)
                 {
-                    case true when employeeNumberExists:
-                        ModelState.AddModelError("", "Both Username and Employee Number are already in use by other users.");
-                        break;
-
-                    case true:
-                        ModelState.AddModelError("", "Username is already in use by another user.");
-                        break;
-
-                    default:
-                        if (employeeNumberExists)
-                        {
-                            ModelState.AddModelError("", "Employee Number is already in use by another user.");
-                        }
-                        break;
+                    AddErrors(result);
+                    return View(model);
                 }
-
-                if (usernameExists || employeeNumberExists)
-                {
-                    return View(user);
-                }
-
-                user.FirstName = user.FirstName.ToUpper();
-                user.LastName = user.LastName.ToUpper();
-                user.AccessDepartments = string.Join(",", accessDepartments);
-                user.AccessCompanies = string.Join(",", accessCompanies);
-
-                user.Password = HashPassword(user, user.Password);
-                await _dbContext.Accounts.AddAsync(user, cancellationToken);
-
-                LogsModel logs = new(_userName!, $"Add new user: {user.Username}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
 
                 TempData["success"] = "User created successfully";
                 return RedirectToAction("Index", "Account");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
-                _logger.LogError(ex, "Failed to create user {Username}.", user.Username);
-                TempData["ErrorMessage"] = "Failed to create user.";
-                return View(user);
+                _logger.LogError(ex, "Failed to create user {Username}.", model.Username);
+                ModelState.AddModelError(string.Empty, "Failed to create user.");
+                return View(model);
             }
         }
 
@@ -279,34 +212,26 @@ namespace Document_Management.Controllers
                 return NotFound();
             }
 
-            user.Departments = await _dbContext.Departments
-                .OrderBy(d => d.DepartmentName)
-                .Select(s => new SelectListItem
-                {
-                    Text = s.DepartmentName,
-                    Value = s.DepartmentName
-                })
-                .ToListAsync(cancellationToken);
+            var model = new AccountEditViewModel
+            {
+                Id = user.Id,
+                EmployeeNumber = user.EmployeeNumber,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Role = NormalizeRole(user.Role),
+                Department = user.Department,
+                AccessDepartments = SplitSelections(user.AccessDepartments),
+                AccessCompanies = SplitSelections(user.AccessCompanies),
+                IsActive = user.IsActive
+            };
 
-            user.Companies = await _dbContext.Companies
-                .OrderBy(c => c.CompanyName)
-                .Select(s => new SelectListItem
-                {
-                    Text = s.CompanyName,
-                    Value = s.CompanyName
-                })
-                .ToListAsync(cancellationToken);
-
-            return View(user);
+            await PopulateOptionsAsync(model, cancellationToken);
+            return View(model);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(Account model,
-            string[] accessDepartments,
-            string[] accessCompanies,
-            string newPassword,
-            string newConfirmPassword,
+        public async Task<IActionResult> Edit(AccountEditViewModel model,
             CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
@@ -315,89 +240,101 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
             try
             {
-                var user = await _dbContext.Accounts
-                    .FirstOrDefaultAsync(x => x.Id == model.Id, cancellationToken);
+                await PopulateOptionsAsync(model, cancellationToken);
 
-                if (user == null)
-                {
-                    return NotFound();
-                }
-
-                model.Departments = await _dbContext.Departments
-                    .OrderBy(d => d.DepartmentName)
-                    .Select(s => new SelectListItem
-                    {
-                        Text = s.DepartmentName,
-                        Value = s.DepartmentName
-                    })
-                    .ToListAsync(cancellationToken);
-
-                model.Companies = await _dbContext.Companies
-                    .OrderBy(c => c.CompanyName)
-                    .Select(s => new SelectListItem
-                    {
-                        Text = s.CompanyName,
-                        Value = s.CompanyName
-                    })
-                    .ToListAsync(cancellationToken);
-
-                var dataChanged = user.EmployeeNumber != model.EmployeeNumber ||
-                                  user.FirstName != model.FirstName ||
-                                  user.LastName != model.LastName ||
-                                  user.Department != model.Department ||
-                                  user.Username != model.Username ||
-                                  user.Role != model.Role ||
-                                  user.IsActive != model.IsActive ||
-                                  (!string.IsNullOrEmpty(newPassword) && !string.IsNullOrEmpty(newConfirmPassword)) ||
-                                  !user.AccessDepartments.Split(',').SequenceEqual(accessDepartments) ||
-                                  !user.AccessCompanies.Split(',').SequenceEqual(accessCompanies);
-
-                if (!dataChanged)
+                if (!ModelState.IsValid)
                 {
                     return View(model);
                 }
 
-                user.EmployeeNumber = model.EmployeeNumber;
-                user.FirstName = model.FirstName.ToUpper();
-                user.LastName = model.LastName.ToUpper();
-                user.Department = model.Department;
-                user.Username = model.Username;
-                user.Role = model.Role;
-                user.IsActive = model.IsActive;
-
-                if (!string.IsNullOrEmpty(newPassword) && !string.IsNullOrEmpty(newConfirmPassword))
+                var result = await _accountManagementService.UpdateAsync(model, _userName!, cancellationToken);
+                if (result.NotFound)
                 {
-                    if (newPassword == newConfirmPassword)
-                    {
-                        user.Password = HashPassword(user, newPassword);
-                    }
-                    else
-                    {
-                        TempData["error"] = "Password is not the same";
-                        return View(model);
-                    }
+                    return NotFound();
                 }
 
-                user.AccessDepartments = accessDepartments.Length > 0 ? string.Join(",", accessDepartments) : string.Empty;
-                user.AccessCompanies = accessCompanies.Length > 0 ? string.Join(",", accessCompanies) : string.Empty;
-
-                LogsModel logs = new(_userName!, $"Update user: {user.Username}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                if (!result.Succeeded)
+                {
+                    AddErrors(result);
+                    return View(model);
+                }
 
                 TempData["success"] = "User updated successfully";
                 return RedirectToAction("Index");
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to update user {UserId}.", model.Id);
-                TempData["error"] = "Failed to update user.";
+                ModelState.AddModelError(string.Empty, "Failed to update user.");
+                return View(model);
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> UpdatePassword(int id, CancellationToken cancellationToken)
+        {
+            var adminAccessResult = EnsureAdminAccess();
+            if (adminAccessResult != null)
+            {
+                return adminAccessResult;
+            }
+
+            var user = await _dbContext.Accounts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            return View(new AccountPasswordViewModel
+            {
+                Id = user.Id,
+                Username = user.Username
+            });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UpdatePassword(
+            AccountPasswordViewModel model,
+            CancellationToken cancellationToken)
+        {
+            var adminAccessResult = EnsureAdminAccess();
+            if (adminAccessResult != null)
+            {
+                return adminAccessResult;
+            }
+
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return View(model);
+                }
+
+                var result = await _accountManagementService.UpdatePasswordAsync(model, _userName!, cancellationToken);
+                if (result.NotFound)
+                {
+                    return NotFound();
+                }
+
+                if (!result.Succeeded)
+                {
+                    AddErrors(result);
+                    return View(model);
+                }
+
+                TempData["success"] = "Password updated successfully";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to update password for user {UserId}.", model.Id);
+                ModelState.AddModelError(string.Empty, "Failed to update password.");
                 return View(model);
             }
         }
@@ -552,6 +489,44 @@ namespace Document_Management.Controllers
                 TempData["error"] = "Failed to logout.";
                 return RedirectToAction("Index", "Home");
             }
+        }
+
+        private async Task PopulateOptionsAsync(AccountCreateViewModel model, CancellationToken cancellationToken)
+        {
+            model.Departments = await _accountManagementService.GetDepartmentOptionsAsync(cancellationToken);
+            model.Companies = await _accountManagementService.GetCompanyOptionsAsync(cancellationToken);
+        }
+
+        private async Task PopulateOptionsAsync(AccountEditViewModel model, CancellationToken cancellationToken)
+        {
+            model.Departments = await _accountManagementService.GetDepartmentOptionsAsync(cancellationToken);
+            model.Companies = await _accountManagementService.GetCompanyOptionsAsync(cancellationToken);
+        }
+
+        private void AddErrors(OperationResult result)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(error.Key, error.Value);
+            }
+
+            if (result.GeneralError != null)
+            {
+                ModelState.AddModelError(string.Empty, result.GeneralError);
+            }
+        }
+
+        private static string[] SplitSelections(string? selections)
+        {
+            return string.IsNullOrEmpty(selections)
+                ? Array.Empty<string>()
+                : selections.Split(',', StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static string NormalizeRole(string role)
+        {
+            return Enum.GetNames<Roles>().FirstOrDefault(
+                allowedRole => string.Equals(allowedRole, role, StringComparison.OrdinalIgnoreCase)) ?? role;
         }
 
         private IActionResult? EnsureAdminAccess()

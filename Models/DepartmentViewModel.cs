@@ -1,8 +1,13 @@
-namespace Document_Management.Models;
+using System.ComponentModel.DataAnnotations;
 
-public class DepartmentViewModel
+namespace Document_Management.Models
 {
-    public int Id { get; set; }
+    public class DepartmentViewModel
+    {
+        public int Id { get; set; }
 
-    public string DepartmentName { get; set; } = string.Empty;
+        [Required(ErrorMessage = "Department name is required.")]
+        [StringLength(100, ErrorMessage = "Department name cannot exceed 100 characters.")]
+        public string DepartmentName { get; set; } = string.Empty;
+    }
 }

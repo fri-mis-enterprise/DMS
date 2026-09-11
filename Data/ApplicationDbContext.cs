@@ -1,4 +1,4 @@
-﻿using Document_Management.Models;
+using Document_Management.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace Document_Management.Data
@@ -39,9 +39,14 @@ namespace Document_Management.Data
             builder.Entity<Company>(c => c.HasIndex(c => c.CompanyName).IsUnique());
             builder.Entity<Department>(d => d.HasIndex(d => d.DepartmentName).IsUnique());
             builder.Entity<Category>(c => c.HasIndex(c => c.CategoryName).IsUnique());
+            builder.Entity<Account>(a =>
+            {
+                a.HasIndex(account => account.Username).IsUnique();
+                a.HasIndex(account => account.EmployeeNumber).IsUnique();
+            });
             builder.Entity<SubCategory>(sc =>
             {
-                sc.HasIndex(sc => sc.SubCategoryName)
+                sc.HasIndex(sc => new { sc.CategoryId, sc.SubCategoryName })
                     .IsUnique();
                 sc.HasOne(c => c.Category)
                     .WithMany(c => c.SubCategories)

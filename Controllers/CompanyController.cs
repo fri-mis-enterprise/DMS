@@ -1,7 +1,6 @@
 using Document_Management.Data;
 using Document_Management.Models;
-using Document_Management.Utility.Extensions;
-using Document_Management.Utility.Helper;
+using Document_Management.Service;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,30 +9,25 @@ namespace Document_Management.Controllers
     public class CompanyController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly MasterDataService _masterDataService;
         private readonly ILogger<CompanyController> _logger;
         private readonly string? _userRole;
         private readonly string? _userName;
 
         public CompanyController(
             ApplicationDbContext dbContext,
+            MasterDataService masterDataService,
             IHttpContextAccessor httpContextAccessor,
             ILogger<CompanyController> logger)
         {
             _dbContext = dbContext;
+            _masterDataService = masterDataService;
             _logger = logger;
-
-            if (httpContextAccessor.HttpContext != null)
-            {
-                _userRole = httpContextAccessor.HttpContext.Session.GetString("userRole")?.ToLower();
-                _userName = httpContextAccessor.HttpContext.Session.GetString("username");
-            }
-            else
-            {
-                _userRole = null;
-            }
+            _userRole = httpContextAccessor.HttpContext?.Session.GetString("userRole")?.ToLowerInvariant();
+            _userName = httpContextAccessor.HttpContext?.Session.GetString("username");
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -43,11 +37,7 @@ namespace Document_Management.Controllers
 
             try
             {
-                var companies = await _dbContext.Companies
-                    .OrderBy(u => u.CompanyName)
-                    .ToListAsync();
-
-                return View(companies);
+                return View(await _dbContext.Companies.OrderBy(company => company.CompanyName).ToListAsync(cancellationToken));
             }
             catch (Exception ex)
             {
@@ -61,12 +51,7 @@ namespace Document_Management.Controllers
         public IActionResult Create()
         {
             var adminAccessResult = EnsureAdminAccess();
-            if (adminAccessResult != null)
-            {
-                return adminAccessResult;
-            }
-
-            return View();
+            return adminAccessResult ?? View();
         }
 
         [HttpPost]
@@ -79,48 +64,26 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var companyAlreadyExist = await _dbContext.Companies
-                    .AnyAsync(u => u.CompanyName == viewModel.CompanyName, cancellationToken);
-
-                if (companyAlreadyExist)
-                {
-                    ModelState.AddModelError("CompanyName", "The company with the same name already exists.");
-                    TempData["ErrorMessage"] = "The company with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var company = new Company
-                {
-                    CompanyName = viewModel.CompanyName.RemoveCommas(),
-                    CreatedBy = _userName!,
-                };
-
-                await _dbContext.Companies.AddAsync(company, cancellationToken);
-
-                LogsModel logs = new(_userName!, $"Add new company: {viewModel.CompanyName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Company created successfully";
-                return RedirectToAction("Index");
+                result = await _masterDataService.CreateCompanyAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to create company {CompanyName}.", viewModel.CompanyName);
-                TempData["ErrorMessage"] = "Failed to create company.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to create company.");
                 return View(viewModel);
             }
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Company created successfully";
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpGet]
@@ -134,21 +97,17 @@ namespace Document_Management.Controllers
 
             try
             {
-                var company = await _dbContext.Companies
-                    .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
+                var company = await _dbContext.Companies.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
                 if (company == null)
                 {
                     return NotFound();
                 }
 
-                var viewModel = new CompanyViewModel
+                return View(new CompanyViewModel
                 {
                     Id = company.Id,
-                    CompanyName = company.CompanyName.RemoveCommas(),
-                };
-
-                return View(viewModel);
+                    CompanyName = company.CompanyName
+                });
             }
             catch (Exception ex)
             {
@@ -168,54 +127,44 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var existingCompany = await _dbContext.Companies
-                    .FirstOrDefaultAsync(x => x.Id == viewModel.Id, cancellationToken);
-
-                if (existingCompany == null)
-                {
-                    return NotFound();
-                }
-
-                var companyAlreadyExist = await _dbContext.Companies
-                    .AnyAsync(u =>
-                        u.Id != viewModel.Id &&
-                        u.CompanyName == viewModel.CompanyName, cancellationToken);
-
-                if (companyAlreadyExist)
-                {
-                    ModelState.AddModelError("CompanyName", "The company with the same name already exists.");
-                    TempData["ErrorMessage"] = "The company with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var existingName = existingCompany.CompanyName;
-                existingCompany.CompanyName = viewModel.CompanyName.RemoveCommas();
-                existingCompany.EditedBy = _userName;
-                existingCompany.EditedDate = DateTimeHelper.GetCurrentPhilippineTime();
-
-                LogsModel logs = new(_userName!, $"Update company from {existingName} to {viewModel.CompanyName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Company updated successfully";
-                return RedirectToAction("Index");
+                result = await _masterDataService.UpdateCompanyAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to update company {CompanyId}.", viewModel.Id);
-                TempData["ErrorMessage"] = "Failed to update company.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to update company.");
                 return View(viewModel);
+            }
+            if (result.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Company updated successfully";
+            return RedirectToAction(nameof(Index));
+        }
+
+        private void AddErrors(OperationResult result)
+        {
+            ModelState.Clear();
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(error.Key, error.Value);
+            }
+
+            if (result.GeneralError != null)
+            {
+                ModelState.AddModelError(string.Empty, result.GeneralError);
             }
         }
 

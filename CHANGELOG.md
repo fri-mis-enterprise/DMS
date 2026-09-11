@@ -5,6 +5,36 @@ The format is based on Semantic Versioning.
 
 ---
 
+## [v8.1.0] - 2026-09-11
+### Added
+- Added an admin-only password update action with a dedicated password and confirmation form.
+- Added separate audit logging for administrator password updates.
+
+### Changed
+- Changed normal user editing to manage employee details, roles, access permissions, and status without exposing or changing the username or password.
+
+### Fixed
+- Fixed the user edit workflow so changing profile details no longer requires password fields.
+
+---
+
+## [v8.0.0] - 2026-09-11
+### Added
+- Added service-backed workflows for creating, editing, validating, and deleting master data.
+- Added database uniqueness constraints for account usernames, employee numbers, and sub-categories within their parent category.
+- Added an EF Core migration for storing employee numbers as `varchar(4)` values.
+
+### Changed
+- Refactored category, company, department, and sub-category management to keep business rules in `MasterDataService`.
+- Refactored account creation and editing to use dedicated view models and `AccountManagementService` validation flows.
+- Changed employee numbers from integers to four-digit strings so values such as `0001` retain their leading zeroes.
+
+### Fixed
+- Fixed master-data create and edit flows so validation failures and persistence errors return consistently to the relevant form.
+- Fixed account create and edit validation for duplicate usernames or employee numbers, password changes, and access selections.
+
+---
+
 ## [v7.2.0] - 2026-09-04
 ### Added
 - Added role-aware dashboard statistics for active documents, monthly uploads, stored pages, and storage usage.

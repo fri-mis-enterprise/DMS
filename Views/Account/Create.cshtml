@@ -1,4 +1,4 @@
-﻿@model Document_Management.Models.Account
+@model AccountCreateViewModel
 
 @{
     ViewData["Title"] = "Register";
@@ -7,7 +7,6 @@
 <link href="~/css/user-create-from-style.css" rel="stylesheet" />
 
 <div class="create-form-wrapper">
-
     <div class="d-flex align-items-start justify-content-between mb-3">
         <div>
             <h4 class="mb-0">Create User</h4>
@@ -18,19 +17,15 @@
 
     <form asp-action="Create" method="post">
         @Html.AntiForgeryToken()
-
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-        <!-- Section 1: Employee Info -->
         <div class="form-section">
-            <div class="form-section-header">
-                <span>Employee Information</span>
-            </div>
+            <div class="form-section-header"><span>Employee Information</span></div>
             <div class="form-section-body">
                 <div class="field-row field-row-3 mb-3">
                     <div>
                         <label asp-for="EmployeeNumber" class="form-label small fw-semibold"></label>
-                        <input asp-for="EmployeeNumber" type="number" value="" class="form-control form-control-sm" placeholder="Employee #" />
+                        <input asp-for="EmployeeNumber" type="text" inputmode="numeric" maxlength="4" class="form-control form-control-sm" placeholder="Employee #" />
                         <span asp-validation-for="EmployeeNumber" class="text-danger small"></span>
                     </div>
                     <div>
@@ -48,17 +43,17 @@
                     <div>
                         <label asp-for="Department" class="form-label small fw-semibold"></label>
                         <select asp-for="Department" asp-items="Model.Departments" class="form-select form-select-sm js-select2">
-                            <option value="" selected disabled>-- Select department --</option>
+                            <option value="" disabled>-- Select department --</option>
                         </select>
                         <span asp-validation-for="Department" class="text-danger small"></span>
                     </div>
                     <div>
                         <label asp-for="Role" class="form-label small fw-semibold"></label>
                         <select asp-for="Role" class="form-select form-select-sm">
-                            <option value="" selected disabled>-- Select user role --</option>
-                            @foreach (var role in Enum.GetValues(typeof(Roles)))
+                            <option value="" disabled>-- Select user role --</option>
+                            @foreach (var role in Enum.GetValues<Roles>())
                             {
-                                <option value="@role">@Enum.GetName(typeof(Roles), role)</option>
+                                <option value="@role">@role</option>
                             }
                         </select>
                         <span asp-validation-for="Role" class="text-danger small"></span>
@@ -67,11 +62,8 @@
             </div>
         </div>
 
-        <!-- Section 2: Credentials -->
         <div class="form-section">
-            <div class="form-section-header">
-                <span>Account Credentials</span>
-            </div>
+            <div class="form-section-header"><span>Account Credentials</span></div>
             <div class="form-section-body">
                 <div class="field-row field-row-3 mb-3">
                     <div>
@@ -93,41 +85,34 @@
             </div>
         </div>
 
-        <!-- Section 3: Access Permissions -->
         <div class="form-section">
-            <div class="form-section-header">
-                <span>Access Permissions</span>
-            </div>
+            <div class="form-section-header"><span>Access Permissions</span></div>
             <div class="form-section-body">
-                    <div class="check-subsection-label">Departments</div>
-                    <div class="check-grid">
-                    @foreach (var department in Model.Departments!)
-                        {
-                            <label class="check-pill">
-                                <input type="checkbox" name="AccessDepartments" value="@department.Value" />
-                                @department.Text
-                            </label>
-                        }
-                    </div>
-                    <div class="check-subsection-label">Companies</div>
-                    <div class="check-grid">
-                    @foreach (var company in Model.Companies!)
-                        {
-                            <label class="check-pill">
-                                <input type="checkbox" name="AccessCompanies" value="@company.Value" />
-                                @company.Text
-                            </label>
-                        }
-                    </div>
-                }
+                <div class="check-subsection-label">Departments</div>
+                <div class="check-grid">
+                    @foreach (var department in Model.Departments)
+                    {
+                        <label class="check-pill">
+                            <input type="checkbox" name="AccessDepartments" value="@department.Value" @(Model.AccessDepartments.Contains(department.Value, StringComparer.Ordinal) ? "checked" : "") />
+                            @department.Text
+                        </label>
+                    }
+                </div>
+                <div class="check-subsection-label">Companies</div>
+                <div class="check-grid">
+                    @foreach (var company in Model.Companies)
+                    {
+                        <label class="check-pill">
+                            <input type="checkbox" name="AccessCompanies" value="@company.Value" @(Model.AccessCompanies.Contains(company.Value, StringComparer.Ordinal) ? "checked" : "") />
+                            @company.Text
+                        </label>
+                    }
+                </div>
             </div>
         </div>
 
-        <!-- Section 4: Status -->
         <div class="form-section">
-            <div class="form-section-header">
-                <span>Account Status</span>
-            </div>
+            <div class="form-section-header"><span>Account Status</span></div>
             <div class="form-section-body">
                 <div class="mb-3 d-flex align-items-center justify-content-between">
                     <div>
@@ -141,11 +126,9 @@
             </div>
         </div>
 
-        <!-- Actions -->
         <div class="d-flex justify-content-end gap-2 pt-1">
             <input type="submit" value="Save" class="btn btn-secondary btn-sm px-4" />
         </div>
-
     </form>
 </div>
 

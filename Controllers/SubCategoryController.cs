@@ -1,8 +1,7 @@
 using Document_Management.Data;
 using Document_Management.Models;
-using Document_Management.Utility.Helper;
+using Document_Management.Service;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace Document_Management.Controllers
@@ -10,30 +9,25 @@ namespace Document_Management.Controllers
     public class SubCategoryController : Controller
     {
         private readonly ApplicationDbContext _dbContext;
+        private readonly MasterDataService _masterDataService;
         private readonly ILogger<SubCategoryController> _logger;
         private readonly string? _userRole;
         private readonly string? _userName;
 
         public SubCategoryController(
             ApplicationDbContext dbContext,
+            MasterDataService masterDataService,
             IHttpContextAccessor httpContextAccessor,
             ILogger<SubCategoryController> logger)
         {
             _dbContext = dbContext;
+            _masterDataService = masterDataService;
             _logger = logger;
-
-            if (httpContextAccessor.HttpContext != null)
-            {
-                _userRole = httpContextAccessor.HttpContext.Session.GetString("userRole")?.ToLower();
-                _userName = httpContextAccessor.HttpContext.Session.GetString("username");
-            }
-            else
-            {
-                _userRole = null;
-            }
+            _userRole = httpContextAccessor.HttpContext?.Session.GetString("userRole")?.ToLowerInvariant();
+            _userName = httpContextAccessor.HttpContext?.Session.GetString("username");
         }
 
-        public async Task<IActionResult> Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -43,12 +37,12 @@ namespace Document_Management.Controllers
 
             try
             {
-                var subCategory = await _dbContext.SubCategories
-                    .Include(s => s.Category)
-                    .OrderBy(u => u.SubCategoryName)
-                    .ToListAsync();
+                var subCategories = await _dbContext.SubCategories
+                    .Include(subCategory => subCategory.Category)
+                    .OrderBy(subCategory => subCategory.SubCategoryName)
+                    .ToListAsync(cancellationToken);
 
-                return View(subCategory);
+                return View(subCategories);
             }
             catch (Exception ex)
             {
@@ -59,7 +53,7 @@ namespace Document_Management.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Create()
+        public async Task<IActionResult> Create(CancellationToken cancellationToken)
         {
             var adminAccessResult = EnsureAdminAccess();
             if (adminAccessResult != null)
@@ -69,19 +63,10 @@ namespace Document_Management.Controllers
 
             try
             {
-                var viewModel = new SubCategoryViewModel
+                return View(new SubCategoryViewModel
                 {
-                    Categories = await _dbContext.Categories
-                        .OrderBy(u => u.CategoryName)
-                        .Select(c => new SelectListItem
-                        {
-                            Text = c.CategoryName,
-                            Value = c.Id.ToString()
-                        })
-                        .ToListAsync(),
-                };
-
-                return View(viewModel);
+                    Categories = await _masterDataService.GetCategoryOptionsAsync(cancellationToken)
+                });
             }
             catch (Exception ex)
             {
@@ -101,59 +86,27 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                viewModel.Categories = await _dbContext.Categories
-                    .OrderBy(u => u.CategoryName)
-                    .Select(c => new SelectListItem
-                    {
-                        Text = c.CategoryName,
-                        Value = c.Id.ToString()
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var subCategoryAlreadyExist = await _dbContext.SubCategories
-                    .AnyAsync(u => u.CategoryId == viewModel.CategoryId
-                                   && u.SubCategoryName == viewModel.SubCategoryName, cancellationToken);
-
-                if (subCategoryAlreadyExist)
-                {
-                    ModelState.AddModelError("SubCategoryName", "The sub-category with the same name already exists.");
-                    TempData["ErrorMessage"] = "The sub-category with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var subCategory = new SubCategory
-                {
-                    SubCategoryName = viewModel.SubCategoryName,
-                    CategoryId = viewModel.CategoryId,
-                    CreatedBy = _userName!,
-                };
-
-                await _dbContext.SubCategories.AddAsync(subCategory, cancellationToken);
-
-                LogsModel logs = new(_userName!, $"Add new sub-category: {viewModel.SubCategoryName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Sub-Category created successfully";
-                return RedirectToAction("Index");
+                viewModel.Categories = await _masterDataService.GetCategoryOptionsAsync(cancellationToken);
+                result = await _masterDataService.CreateSubCategoryAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to create sub-category {SubCategoryName}.", viewModel.SubCategoryName);
-                TempData["ErrorMessage"] = "Failed to create sub-category.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to create sub-category.");
                 return View(viewModel);
             }
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Sub-Category created successfully";
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpGet]
@@ -167,30 +120,19 @@ namespace Document_Management.Controllers
 
             try
             {
-                var subCategory = await _dbContext.SubCategories
-                    .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
-
+                var subCategory = await _dbContext.SubCategories.FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
                 if (subCategory == null)
                 {
                     return NotFound();
                 }
 
-                var viewModel = new SubCategoryViewModel
+                return View(new SubCategoryViewModel
                 {
                     Id = subCategory.Id,
                     SubCategoryName = subCategory.SubCategoryName,
                     CategoryId = subCategory.CategoryId,
-                    Categories = await _dbContext.Categories
-                        .OrderBy(u => u.CategoryName)
-                        .Select(c => new SelectListItem
-                        {
-                            Text = c.CategoryName,
-                            Value = c.Id.ToString()
-                        })
-                        .ToListAsync(cancellationToken),
-                };
-
-                return View(viewModel);
+                    Categories = await _masterDataService.GetCategoryOptionsAsync(cancellationToken)
+                });
             }
             catch (Exception ex)
             {
@@ -210,65 +152,45 @@ namespace Document_Management.Controllers
                 return adminAccessResult;
             }
 
-            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            OperationResult result;
             try
             {
-                viewModel.Categories = await _dbContext.Categories
-                    .OrderBy(u => u.CategoryName)
-                    .Select(c => new SelectListItem
-                    {
-                        Text = c.CategoryName,
-                        Value = c.Id.ToString()
-                    })
-                    .ToListAsync(cancellationToken);
-
-                if (!ModelState.IsValid)
-                {
-                    TempData["ErrorMessage"] = "The information you submitted is not valid.";
-                    return View(viewModel);
-                }
-
-                var existingSubCategory = await _dbContext.SubCategories
-                    .FirstOrDefaultAsync(x => x.Id == viewModel.Id, cancellationToken);
-
-                if (existingSubCategory == null)
-                {
-                    return NotFound();
-                }
-
-                var subCategoryAlreadyExist = await _dbContext.SubCategories
-                    .AnyAsync(u =>
-                        u.Id != viewModel.Id &&
-                        u.CategoryId == viewModel.CategoryId &&
-                        u.SubCategoryName == viewModel.SubCategoryName, cancellationToken);
-
-                if (subCategoryAlreadyExist)
-                {
-                    ModelState.AddModelError("SubCategoryName", "The sub-category with the same name already exists.");
-                    TempData["ErrorMessage"] = "The sub-category with the same name already exists.";
-                    return View(viewModel);
-                }
-
-                var existingName = existingSubCategory.SubCategoryName;
-                existingSubCategory.CategoryId = viewModel.CategoryId;
-                existingSubCategory.SubCategoryName = viewModel.SubCategoryName;
-                existingSubCategory.EditedBy = _userName;
-                existingSubCategory.EditedDate = DateTimeHelper.GetCurrentPhilippineTime();
-
-                LogsModel logs = new(_userName!, $"Update sub-category from {existingName} to {viewModel.SubCategoryName}");
-                await _dbContext.Logs.AddAsync(logs, cancellationToken);
-
-                await _dbContext.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                TempData["success"] = "Sub-Category updated successfully";
-                return RedirectToAction("Index");
+                viewModel.Categories = await _masterDataService.GetCategoryOptionsAsync(cancellationToken);
+                result = await _masterDataService.UpdateSubCategoryAsync(viewModel, _userName!, cancellationToken);
             }
             catch (Exception ex)
             {
-                await transaction.RollbackAsync(cancellationToken);
                 _logger.LogError(ex, "Failed to update sub-category {SubCategoryId}.", viewModel.Id);
-                TempData["ErrorMessage"] = "Failed to update sub-category.";
+                ModelState.Clear();
+                ModelState.AddModelError(string.Empty, "Failed to update sub-category.");
                 return View(viewModel);
+            }
+            if (result.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (!result.Succeeded)
+            {
+                AddErrors(result);
+                return View(viewModel);
+            }
+
+            TempData["success"] = "Sub-Category updated successfully";
+            return RedirectToAction(nameof(Index));
+        }
+
+        private void AddErrors(OperationResult result)
+        {
+            ModelState.Clear();
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(error.Key, error.Value);
+            }
+
+            if (result.GeneralError != null)
+            {
+                ModelState.AddModelError(string.Empty, result.GeneralError);
             }
         }
 
