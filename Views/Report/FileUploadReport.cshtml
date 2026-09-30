@@ -109,6 +109,10 @@ var userName = Model.CurrentUser;
             <h5>Date Range: @Model.DateFrom.ToString("MMM dd, yyyy") to @Model.DateTo.ToString("MMM dd, yyyy")</h5>
         </div>
         <div class="col-6 text-end">
+            <a asp-action="ExportFileUploadReport"
+               asp-route-dateFrom="@Model.DateFrom.ToString("yyyy-MM-dd")"
+               asp-route-dateTo="@Model.DateTo.ToString("yyyy-MM-dd")"
+               class="btn btn-success buttons no-print">Export to Excel</a>
             <button class="btn btn-secondary buttons no-print" onclick="window.print()">Print Report</button>
         </div>
     </div>
