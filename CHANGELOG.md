@@ -5,6 +5,13 @@ The format is based on Semantic Versioning.
 
 ---
 
+## [v8.2.0] - 2026-09-30
+### Added
+- Added Excel export for the File Upload Activity Report using the selected date range.
+- Added report metadata, table filters, frozen headers, formatted dates, and readable column sizing to the exported workbook.
+
+---
+
 ## [v8.1.0] - 2026-09-11
 ### Added
 - Added an admin-only password update action with a dedicated password and confirmation form.

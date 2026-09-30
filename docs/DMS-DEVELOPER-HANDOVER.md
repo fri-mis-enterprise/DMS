@@ -3,10 +3,10 @@
 | Item | Value |
 | --- | --- |
 | System | Document Management System (DMS) |
-| Application version | 8.1.0 |
+| Application version | 8.2.0 |
 | Technology | ASP.NET Core MVC (.NET 10), EF Core, PostgreSQL, Google Cloud Storage |
 | Intended audience | Developers and MIS support personnel |
-| Last updated | 2026-09-11 |
+| Last updated | 2026-09-30 |
 
 ## 1. Purpose and scope
 
